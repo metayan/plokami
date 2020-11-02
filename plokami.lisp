@@ -164,8 +164,8 @@
      (bytes :pointer))
   (let* ((key (mem-aref user :int))
          (pcap (gethash key *callbacks*)))
-    (with-foreign-slots ((ts caplen len) pkthdr pcap_pkthdr)
-      (with-foreign-slots ((tv_sec tv_usec) ts timeval)
+    (with-foreign-slots ((caplen len) pkthdr (:struct pcap_pkthdr))
+      (with-foreign-slots ((tv_sec tv_usec) pkthdr (:struct timeval))
         (with-slots (buffer handler) pcap
           ;; Copy packet data from C to lisp
           (with-pointer-to-vector-data (ptr buffer)
@@ -646,13 +646,13 @@ beyond simple assertions of argument checks, are raised by this function."))
 ;; Signals network-interface-error
 (defmethod stats ((cap pcap-live))
   (with-slots (pcap_t) cap
-    (with-foreign-object (stat 'pcap_stat)
+    (with-foreign-object (stat '(:struct pcap_stat))
       (when (= -1 (%pcap-stats pcap_t stat))
         (error 'network-interface-error :text
                "Error calculating packet capture statistics."))
-      (values (foreign-slot-value stat 'pcap_stat 'ps_recv)
-              (foreign-slot-value stat 'pcap_stat 'ps_drop)
-              (foreign-slot-value stat 'pcap_stat 'ps_ifdrop)))))
+      (values (foreign-slot-value stat '(:struct pcap_stat) 'ps_recv)
+              (foreign-slot-value stat '(:struct pcap_stat) 'ps_drop)
+              (foreign-slot-value stat '(:struct pcap_stat) 'ps_ifdrop)))))
 
 
 ;; Signals packet-inject-error
@@ -678,7 +678,7 @@ beyond simple assertions of argument checks, are raised by this function."))
         (with-error-buffer (eb)
           (with-foreign-objects ((netp :uint32)
                                  (maskp :uint32)
-                                 (fp 'bpf_program))
+                                 (fp '(:struct bpf_program)))
             (when (= -1 (%pcap-lookupnet interface netp maskp eb))
               (error 'packet-filter-error :text (error-buffer-to-lisp eb)))
             (flet ((compile-filter ()
@@ -705,7 +705,7 @@ beyond simple assertions of argument checks, are raised by this function."))
 (defmethod set-filter ((cap pcap-reader) (filter string))
   (restart-case
       (with-slots (pcap_t) cap
-        (with-foreign-object (fp 'bpf_program)
+        (with-foreign-object (fp '(:struct bpf_program))
           (flet ((compile-filter ()
                    (%pcap-compile pcap_t fp filter 1 0)))
             (when (= -1
@@ -738,9 +738,9 @@ beyond simple assertions of argument checks, are raised by this function."))
                  (>= origlength 0)
                  (>= sec 0)
                  (>= usec 0)))
-    (with-foreign-object (header 'pcap_pkthdr)
-      (with-foreign-slots ((ts caplen len) header pcap_pkthdr)
-        (with-foreign-slots ((tv_sec tv_usec) ts timeval)
+    (with-foreign-object (header '(:struct pcap_pkthdr))
+      (with-foreign-slots ((caplen len) header (:struct pcap_pkthdr))
+        (with-foreign-slots ((tv_sec tv_usec) header (:struct timeval))
           (setf caplen length
                 len origlength
                 tv_sec sec
@@ -769,7 +769,7 @@ Signals `NETWORK-INTERFACE-ERROR' on errors."
         (error 'network-interface-error :text (error-buffer-to-lisp eb)))
       (labels ((ipv4-extract (data)     ; Extract ipv4 address
                  (let ((ptr (inc-pointer (foreign-slot-pointer data
-                                                               'sockaddr
+                                                               '(:struct sockaddr)
                                                                'sa_data)
                                          2)))
                    (with-foreign-object (str :char 16)
@@ -779,7 +779,7 @@ Signals `NETWORK-INTERFACE-ERROR' on errors."
                          (t (foreign-string-to-lisp str)))))))
                (ipv6-extract (data)     ; Extract ipv6 address
                  (let ((ptr (inc-pointer (foreign-slot-pointer data
-                                                               'sockaddr
+                                                               '(:struct sockaddr)
                                                                'sa_data)
                                          6)))
                    (with-foreign-object (str :char 46)
@@ -792,7 +792,7 @@ Signals `NETWORK-INTERFACE-ERROR' on errors."
                (process-sockaddr (addr tag) ; Extract address-specific details
                  (when (null-pointer-p addr)
                    (return-from process-sockaddr nil))
-                 (with-foreign-slots ((sa_len sa_family) addr sockaddr)
+                 (with-foreign-slots ((sa_len sa_family) addr (:struct sockaddr))
                    (let (output fam)
                      (case sa_family
                        (0 (setf fam :AF_UNSPEC)
@@ -812,11 +812,11 @@ Signals `NETWORK-INTERFACE-ERROR' on errors."
            :with ifnext = ifhead
            :while (not (null-pointer-p ifnext)) :do
            (with-foreign-slots ((next name description addresses flags) ifnext
-                                pcap_if_t)
+                                (:struct pcap_if_t))
              (loop :with addrhead = addresses :and newlist = () :with
                 addrnext = addrhead :while (not (null-pointer-p addrnext)) :do
                 (with-foreign-slots ((next addr netmask broadaddr dstaddr)
-                                     addrnext pcap_addr_t)
+                                     addrnext (:struct pcap_addr_t))
                   (macrolet ((check-push (list finallist)
                                (let ((g1val (gensym))
                                      (g2tag (gensym))

@@ -92,7 +92,7 @@
 
 (defcstruct pcap_pkthdr
   "Packet header structure."
-  (ts timeval)
+  (ts (:struct timeval))
   (caplen :uint32)
   (len :uint32))
 
